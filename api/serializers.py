@@ -47,3 +47,12 @@ class UserSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+
+
+class UpdateProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "name",
+            "email",
+        ]

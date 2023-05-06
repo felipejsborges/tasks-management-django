@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Task, User
-from .serializers import TaskSerializer, UserSerializer
+from .serializers import TaskSerializer, UpdateProfileSerializer, UserSerializer
 
 
 class UserCreate(APIView):
@@ -26,6 +26,36 @@ class UserCreate(APIView):
 
 
 userCreateAPIView = UserCreate.as_view()
+
+
+class UserProfile(APIView):
+    """
+    Retrieve the current user.
+    """
+
+    def get_object(self, pk):
+        try:
+            return User.objects.get(pk=pk)
+        except User.DoesNotExist as err:
+            raise Http404 from err
+
+    def get(self, request):
+        pk = request.user.id
+        user = self.get_object(pk)
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
+
+    def put(self, request):
+        pk = request.user.id
+        user = self.get_object(pk)
+        serializer = UpdateProfileSerializer(user, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+userProfileAPIView = UserProfile.as_view()
 
 
 class TaskList(APIView):
