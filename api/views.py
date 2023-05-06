@@ -3,8 +3,29 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Task
-from .serializers import TaskSerializer
+from .models import Task, User
+from .serializers import TaskSerializer, UserSerializer
+
+
+class UserCreate(APIView):
+    """
+    Register a new user.
+    """
+
+    def post(self, request):
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(username=serializer.validated_data["email"])
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def get(self, _):
+        users = User.objects.all()
+        serializer = UserSerializer(users, many=True)
+        return Response(serializer.data)
+
+
+userCreateAPIView = UserCreate.as_view()
 
 
 class TaskList(APIView):

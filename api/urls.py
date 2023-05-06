@@ -5,4 +5,5 @@ from . import views
 urlpatterns = [
     path("tasks", views.taskListAPIView),
     path("tasks/<int:pk>", views.taskDetailAPIView),
+    path("users", views.userCreateAPIView),
 ]
