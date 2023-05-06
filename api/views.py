@@ -35,7 +35,9 @@ class UserCreate(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def get(self, _):
+    def get(self, request):
+        if not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
         users = User.objects.all()
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
@@ -73,15 +75,21 @@ class TaskList(APIView):
     List all tasks, or create a new task.
     """
 
-    def get(self, _):
-        tasks = Task.objects.all()
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        tasks = (
+            Task.objects.all()
+            if request.user.is_superuser
+            else Task.objects.filter(owner=request.user)
+        )
         serializer = TaskSerializer(tasks, many=True)
         return Response(serializer.data)
 
     def post(self, request):
         serializer = TaskSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(owner=self.request.user)
+            serializer.save(owner=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -94,21 +102,27 @@ class TaskDetail(APIView):
     Retrieve, update or delete a task instance.
     """
 
-    def get(self, _, pk):
+    def get(self, request, pk):
         task = get_task(pk)
+        if task.owner != request.user and not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = TaskSerializer(task)
         return Response(serializer.data)
 
     def put(self, request, pk):
         task = get_task(pk)
+        if task.owner != request.user and not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = TaskSerializer(task, data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def delete(self, _, pk):
+    def delete(self, request, pk):
         task = get_task(pk)
+        if task.owner != request.user and not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
         task.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -123,6 +137,8 @@ class TaskCompleting(APIView):
 
     def patch(self, request, pk):
         task = get_task(pk)
+        if task.owner != request.user and not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
         task.completed_at = datetime.now()
         serializer = TaskSerializer(task, data=request.data, partial=True)
         if serializer.is_valid():
