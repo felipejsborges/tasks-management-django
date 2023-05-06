@@ -1,19 +1,13 @@
 from datetime import datetime
 
 from django.http import Http404
-from rest_framework import status
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Task, User
+from .permissions import IsOwnerOrAdmin
 from .serializers import TaskSerializer, UpdateProfileSerializer, UserSerializer
-
-
-def get_task(pk):
-    try:
-        return Task.objects.get(pk=pk)
-    except Task.DoesNotExist as err:
-        raise Http404 from err
 
 
 def get_user(pk):
@@ -23,9 +17,9 @@ def get_user(pk):
         raise Http404 from err
 
 
-class UserCreate(APIView):
+class ListUsers(APIView):
     """
-    Register a new user.
+    Create a new user and list all of them.
     """
 
     def post(self, request):
@@ -43,13 +37,17 @@ class UserCreate(APIView):
         return Response(serializer.data)
 
 
-userCreateAPIView = UserCreate.as_view()
+listUsersAPIView = ListUsers.as_view()
 
 
-class UserProfile(APIView):
+class UserProfile(generics.GenericAPIView):
     """
-    Retrieve the current user.
+    Retrieve or update a user.
     """
+
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         pk = request.user.id
@@ -70,81 +68,55 @@ class UserProfile(APIView):
 userProfileAPIView = UserProfile.as_view()
 
 
-class TaskList(APIView):
+class TaskList(generics.ListCreateAPIView):
     """
     List all tasks, or create a new task.
     """
 
-    def get(self, request):
-        if not request.user.is_authenticated:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        tasks = (
-            Task.objects.all()
-            if request.user.is_superuser
-            else Task.objects.filter(owner=request.user)
-        )
-        serializer = TaskSerializer(tasks, many=True)
-        return Response(serializer.data)
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-    def post(self, request):
-        serializer = TaskSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(owner=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            return Task.objects.all()
+        return Task.objects.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
 
 taskListAPIView = TaskList.as_view()
 
 
-class TaskDetail(APIView):
+class TaskDetail(generics.RetrieveUpdateDestroyAPIView):
     """
     Retrieve, update or delete a task instance.
     """
 
-    def get(self, request, pk):
-        task = get_task(pk)
-        if task.owner != request.user and not request.user.is_superuser:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        serializer = TaskSerializer(task)
-        return Response(serializer.data)
-
-    def put(self, request, pk):
-        task = get_task(pk)
-        if task.owner != request.user and not request.user.is_superuser:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        serializer = TaskSerializer(task, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk):
-        task = get_task(pk)
-        if task.owner != request.user and not request.user.is_superuser:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        task.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 
 
 taskDetailAPIView = TaskDetail.as_view()
 
 
-class TaskCompleting(APIView):
+class TaskCompleting(generics.UpdateAPIView):
     """
     Complete a task.
     """
 
-    def patch(self, request, pk):
-        task = get_task(pk)
-        if task.owner != request.user and not request.user.is_superuser:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        task.completed_at = datetime.now()
-        serializer = TaskSerializer(task, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    allowed_methods = ["PATCH"]
+
+    def update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        request.data.clear()
+        request.data["completed_at"] = datetime.now()
+        return super().update(request, *args, **kwargs)
 
 
 taskCompletingAPIView = TaskCompleting.as_view()

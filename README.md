@@ -6,3 +6,8 @@ PYENV_VERSION=3.10 && pyenv global 3.10 && pyenv local 3.10 && python --version
 rm -rf venv && python -m venv venv
 source venv/bin/activate
 ```
+
+# Next steps
+
+- [ ] Task filtering and pagination;
+- [ ] JWT authentication;
