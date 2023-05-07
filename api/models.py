@@ -33,7 +33,7 @@ class Task(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ["-updated_at", "created_at"]
+        ordering = ["-completed_at", "updated_at", "created_at"]
 
     def __str__(self):
         return str(self.title)

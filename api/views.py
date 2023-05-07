@@ -1,7 +1,9 @@
 from datetime import datetime
 
+from django.db.models import Q
 from django.http import Http404
 from rest_framework import generics, permissions, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -32,9 +34,29 @@ class ListUsers(APIView):
     def get(self, request):
         if not request.user.is_superuser:
             return Response(status=status.HTTP_403_FORBIDDEN)
-        users = User.objects.all()
-        serializer = UserSerializer(users, many=True)
-        return Response(serializer.data)
+
+        args = ()
+        kwargs = {}
+
+        # field filtering
+        if "name" in request.query_params:
+            kwargs["name__icontains"] = request.query_params["name"]
+        if "email" in request.query_params:
+            kwargs["email__icontains"] = request.query_params["email"]
+
+        # search filtering
+        if "search" in request.query_params:
+            search = request.query_params["search"]
+            args = Q(name__icontains=search) | Q(email__icontains=search)
+
+        # pagination
+        paginator = PageNumberPagination()
+        paginator.page_size = 2
+        queryset = User.objects.filter(*args, **kwargs).order_by("-updated_at")
+        result_page = paginator.paginate_queryset(queryset, request)
+
+        serializer = UserSerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 listUsersAPIView = ListUsers.as_view()
@@ -75,7 +97,12 @@ class TaskList(generics.ListCreateAPIView):
 
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
+
     permission_classes = [permissions.IsAuthenticated]
+
+    filterset_fields = ["title", "description", "owner__name", "owner__email", "effort"]
+    search_fields = ["title", "owner__name", "owner__email"]
+    ordering_fields = "__all__"
 
     def get_queryset(self):
         if self.request.user.is_superuser:

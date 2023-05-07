@@ -9,5 +9,4 @@ source venv/bin/activate
 
 # Next steps
 
-- [ ] Task filtering and pagination;
 - [ ] JWT authentication;
