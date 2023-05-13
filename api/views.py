@@ -140,9 +140,12 @@ class TaskCompleting(generics.UpdateAPIView):
     allowed_methods = ["PATCH"]
 
     def update(self, request, *args, **kwargs):
-        kwargs["partial"] = True
+        task = self.get_object()
+
         request.data.clear()
-        request.data["completed_at"] = datetime.now()
+        request.data["completed_at"] = None if task.completed_at else datetime.now()
+
+        kwargs["partial"] = True
         return super().update(request, *args, **kwargs)
 
 
